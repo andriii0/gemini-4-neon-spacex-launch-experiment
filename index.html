@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VALKYRIE-9 — 3D Reusable Rocket Booster Landing Simulator</title>
+</head>
+<body>
+  <div id="viewport"></div>
+
+  <!-- Top Mission Control Bar -->
+  <header class="hud-top">
+    <div class="brand-block">
+      <div class="brand-title">VALKYRIE-9 <span class="brand-sub">ASDS LANDING SIM</span></div>
+      <div class="status-row">
+        <span id="phase-badge" class="phase-badge phase-coast">COAST</span>
+        <span id="mission-clock" class="mono-dim">T+00.0s</span>
+      </div>
+    </div>
+
+    <div class="camera-bar" role="group" aria-label="Camera Views">
+      <button class="cam-btn active" data-cam="CINEMATIC" title="Key 1">1 Cinematic</button>
+      <button class="cam-btn" data-cam="CHASE" title="Key 2">2 Chase</button>
+      <button class="cam-btn" data-cam="DECK" title="Key 3">3 Deck</button>
+      <button class="cam-btn" data-cam="ONBOARD" title="Key 4">4 Onboard</button>
+      <button class="cam-btn" data-cam="ORBIT" title="Key 5">5 Orbit</button>
+    </div>
+
+    <div class="top-actions">
+      <button id="btn-mode" class="action-btn btn-auto" title="Toggle Auto PID / Manual (P)">AUTO PID</button>
+      <button id="btn-sas" class="action-btn btn-sas active" title="Manual Stability Assist (T)">SAS ON</button>
+      <button id="btn-replay-toggle" class="action-btn" title="Enter Slow-Mo Replay">Replay</button>
+      <button id="btn-mute" class="action-btn" title="Mute / Unmute Audio">SFX ON</button>
+      <button id="btn-pause" class="action-btn" title="Pause / Resume (Space)">Pause</button>
+      <button id="btn-reset" class="action-btn btn-primary" title="Relaunch Scenario (R)">Relaunch</button>
+    </div>
+  </header>
+
+  <!-- Left Telemetry HUD -->
+  <aside class="hud-left">
+    <div class="panel-header">
+      <span>FLIGHT TELEMETRY</span>
+      <span id="legs-pill" class="mini-pill">LEGS STOWED</span>
+    </div>
+
+    <div class="telemetry-grid">
+      <div class="tel-card">
+        <div class="tel-label">ALTITUDE</div>
+        <div class="tel-val"><span id="val-alt">850.0</span><span class="unit">m</span></div>
+      </div>
+      <div class="tel-card">
+        <div class="tel-label">VERT VELOCITY</div>
+        <div class="tel-val"><span id="val-vy">-102.0</span><span class="unit">m/s</span></div>
+      </div>
+      <div class="tel-card">
+        <div class="tel-label">HORIZ SPEED</div>
+        <div class="tel-val"><span id="val-vh">30.1</span><span class="unit">m/s</span></div>
+      </div>
+      <div class="tel-card">
+        <div class="tel-label">EST. LAND ERROR</div>
+        <div class="tel-val"><span id="val-err">14.2</span><span class="unit">m</span></div>
+      </div>
+    </div>
+
+    <!-- Thrust & Throttle Gauge -->
+    <div class="gauge-block">
+      <div class="gauge-head">
+        <span>ENGINE THRUST</span>
+        <span class="mono"><span id="val-thrust">0</span> kN (<span id="val-throttle">0</span>%) · TWR <span id="val-twr">0.00</span></span>
+      </div>
+      <div class="bar-track">
+        <div id="bar-thrust" class="bar-fill bar-thrust" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- Remaining Fuel Gauge -->
+    <div class="gauge-block">
+      <div class="gauge-head">
+        <span>PROPELLANT</span>
+        <span class="mono"><span id="val-fuel-pct">60.0</span>% (<span id="val-fuel-kg">7,200</span> kg)</span>
+      </div>
+      <div class="bar-track">
+        <div id="bar-fuel" class="bar-fill bar-fuel" style="width: 60%"></div>
+      </div>
+    </div>
+
+    <!-- Secondary Stats Row -->
+    <div class="secondary-row">
+      <div><span class="sec-k">TILT</span> <span id="val-tilt" class="mono">0.0°</span></div>
+      <div><span class="sec-k">MASS</span> <span id="val-mass" class="mono">32.8t</span></div>
+      <div><span class="sec-k">WIND</span> <span id="val-wind" class="mono">6.5 m/s</span></div>
+      <div><span class="sec-k">DRAG</span> <span id="val-drag" class="mono">0 kN</span></div>
+    </div>
+
+    <!-- Pad Radar + Telemetry Sparkline -->
+    <div class="visual-widgets">
+      <div class="widget-box">
+        <div class="widget-title">ASDS TARGET RADAR</div>
+        <canvas id="radar-canvas" width="144" height="144"></canvas>
+      </div>
+      <div class="widget-box spark-box">
+        <div class="widget-title">ALT / VEL PROFILE</div>
+        <canvas id="spark-canvas" width="148" height="144"></canvas>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Right Mission Control Panel -->
+  <aside id="hud-right" class="hud-right">
+    <div class="panel-header">
+      <span>MISSION CONTROL</span>
+      <button id="btn-collapse-right" class="collapse-btn" title="Collapse Panel">−</button>
+    </div>
+
+    <div id="right-body" class="right-body">
+      <div class="section-label">SCENARIOS</div>
+      <div id="scenario-list" class="scenario-list"></div>
+
+      <div class="section-label">LIVE ENVIRONMENT & TIME</div>
+      <div class="slider-row">
+        <label>Wind Speed <span id="lbl-wind" class="mono">6.5 m/s</span></label>
+        <input id="sl-wind" type="range" min="0" max="25" step="0.5" value="6.5" />
+      </div>
+      <div class="slider-row">
+        <label>Gust Intensity <span id="lbl-gust" class="mono">35%</span></label>
+        <input id="sl-gust" type="range" min="0" max="100" step="5" value="35" />
+      </div>
+      <div class="inline-btns">
+        <button id="btn-gust" class="mini-action-btn">Inject Wind Gust</button>
+        <button id="btn-legs" class="mini-action-btn">Deploy Legs (L)</button>
+      </div>
+
+      <div class="slider-row" style="margin-top:8px;">
+        <label>Live Sim Speed <span id="lbl-timescale" class="mono">1.0x</span></label>
+        <div class="speed-pills" id="live-speed-pills">
+          <button class="speed-pill" data-speed="0.25">0.25x</button>
+          <button class="speed-pill" data-speed="0.5">0.5x</button>
+          <button class="speed-pill active" data-speed="1">1.0x</button>
+          <button class="speed-pill" data-speed="1.5">1.5x</button>
+        </div>
+      </div>
+
+      <div class="section-label">CUSTOM LAUNCH SETUP</div>
+      <div class="slider-row">
+        <label>Start Altitude <span id="lbl-start-alt" class="mono">850 m</span></label>
+        <input id="sl-start-alt" type="range" min="250" max="1400" step="25" value="850" />
+      </div>
+      <div class="slider-row">
+        <label>Downrange Offset <span id="lbl-start-off" class="mono">165 m</span></label>
+        <input id="sl-start-off" type="range" min="0" max="320" step="10" value="165" />
+      </div>
+      <div class="slider-row">
+        <label>Starting Fuel <span id="lbl-start-fuel" class="mono">7,200 kg</span></label>
+        <input id="sl-start-fuel" type="range" min="2500" max="12000" step="100" value="7200" />
+      </div>
+      <button id="btn-apply-custom" class="mini-action-btn full-width">Apply &amp; Relaunch</button>
+
+      <!-- Manual Controls Panel -->
+      <div class="section-label">MANUAL FLIGHT CONTROLS</div>
+      <div class="manual-throttle-row">
+        <label>Throttle <span id="lbl-manual-thr" class="mono">0%</span></label>
+        <input id="sl-manual-thr" type="range" min="0" max="100" step="1" value="0" />
+      </div>
+      <div class="key-hints">
+        <span><kbd>W/S</kbd> Pitch</span>
+        <span><kbd>A/D</kbd> Yaw</span>
+        <span><kbd>Q/E</kbd> Roll</span>
+        <span><kbd>Shift/Ctrl</kbd> Throttle</span>
+        <span><kbd>Z/X</kbd> Full/Cut</span>
+        <span><kbd>L</kbd> Legs</span>
+        <span><kbd>P</kbd> Auto/Man</span>
+        <span><kbd>R</kbd> Reset</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Mission Outcome Floating Banner -->
+  <div id="outcome-banner" class="outcome-banner hidden">
+    <div class="outcome-top">
+      <div>
+        <div id="outcome-title" class="outcome-title">LANDING CONFIRMED</div>
+        <div id="outcome-sub" class="outcome-sub">Booster upright and stable on ASDS-01</div>
+      </div>
+      <div id="outcome-grade" class="outcome-grade">S</div>
+    </div>
+    <div class="outcome-stats">
+      <div><span class="os-k">TD SPEED</span><span id="os-speed" class="os-v">1.4 m/s</span></div>
+      <div><span class="os-k">PAD ERROR</span><span id="os-err" class="os-v">1.8 m</span></div>
+      <div><span class="os-k">TD TILT</span><span id="os-tilt" class="os-v">1.2°</span></div>
+      <div><span class="os-k">FUEL LEFT</span><span id="os-fuel" class="os-v">18.4%</span></div>
+    </div>
+    <div class="outcome-actions">
+      <button id="btn-watch-replay" class="action-btn btn-primary">Watch Slow-Mo Replay (0.25x)</button>
+      <button id="btn-outcome-reset" class="action-btn">Relaunch</button>
+    </div>
+  </div>
+
+  <!-- Slow-Motion Replay Dock -->
+  <div id="replay-dock" class="replay-dock hidden">
+    <div class="replay-head">
+      <span class="replay-badge">● SLOW-MO REPLAY</span>
+      <span id="replay-time" class="mono">00.0s / 00.0s</span>
+      <div class="replay-speeds" id="replay-speeds">
+        <button class="speed-pill" data-rspeed="0.1">0.1x</button>
+        <button class="speed-pill active" data-rspeed="0.25">0.25x</button>
+        <button class="speed-pill" data-rspeed="0.5">0.5x</button>
+        <button class="speed-pill" data-rspeed="1">1.0x</button>
+        <button class="speed-pill" data-rspeed="2">2.0x</button>
+      </div>
+      <button id="btn-replay-play" class="mini-action-btn">Pause</button>
+      <button id="btn-replay-exit" class="mini-action-btn btn-danger">Exit Replay</button>
+    </div>
+    <div class="timeline-wrap">
+      <div id="timeline-markers" class="timeline-markers"></div>
+      <input id="replay-scrubber" type="range" min="0" max="10" step="0.01" value="0" />
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
